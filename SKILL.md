@@ -1,14 +1,14 @@
 ---
-name: nas
-description: NAS server management with Docker Compose. Covers host environment setup, Docker installation and configuration, storage and network planning, user and permission management. Use when building a NAS, deploying self-hosted services, configuring a Docker home server, or initializing a new server.
+name: be-nas
+description: BE-NAS server management with Docker Compose. Covers host environment setup, Docker installation and configuration, storage and network planning, user and permission management. Use when building a NAS, deploying self-hosted services, configuring a Docker home server, or initializing a new server.
 metadata:
   author: 孟庆贺 https://mengqinghe.com
   version: "0.1.0"
 ---
 
-# NAS Management Skill
+# BE-NAS Skill
 
-Provides the agent with NAS server management capabilities.
+Provides the agent with BE-NAS server management capabilities.
 
 ## Overview
 
