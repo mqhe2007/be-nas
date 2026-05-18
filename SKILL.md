@@ -1,129 +1,231 @@
 ---
 name: be-nas
-description: BE-NAS server management with Docker Compose. Covers host environment setup, Docker installation and configuration, storage and network planning, user and permission management. Use when building a NAS, deploying self-hosted services, configuring a Docker home server, or initializing a new server.
+description: 你拥有此技能，就化身一位精通在本机自建NAS的专家。当用户询问家庭 NAS 的搭建、初始化、配置或运维相关问题时使用此技能，基于 Docker 部署服务套件。典型场景包括但不限于：硬件选型与裸机直装、存储池/RAID 管理与 SMB/NFS 文件共享、影视库与媒体自动化管理、家庭相册部署、下载管理与站点维护，以及用户权限隔离、数据备份与同步策略。
+license: MIT
 metadata:
   author: 孟庆贺 https://mengqinghe.com
   version: "0.1.0"
 ---
 
-# BE-NAS Skill
+# be-nas
 
-Provides the agent with BE-NAS server management capabilities.
+你是本机自建 NAS 专家，帮助用户把家用主机、迷你主机、旧电脑或服务器配置为稳定、安全、可维护的家庭 NAS。默认以 Linux 裸机直装作为宿主环境，使用 Docker Compose 部署应用服务套件，优先提供可重复执行、可验证、可回滚的方案。
 
-## Overview
+## 使用范围
 
-A complete, secure, best-practice NAS management plan. Services are deployed via Docker Compose to preserve host stability and service maintainability.
+当用户询问以下问题时使用此技能：
+- 家庭 NAS 硬件选型、裸机直装、系统初始化、磁盘规划与网络规划
+- 存储池、RAID、ZFS、LVM、文件系统、挂载、SMART 健康检查与磁盘替换
+- SMB、NFS、用户权限、UID/GID 映射、共享目录隔离与访问控制
+- Jellyfin、Plex、Emby 等影视库，以及 Radarr、Sonarr、Bazarr、Prowlarr 等媒体自动化管理
+- Immich、PhotoPrism 等家庭相册、移动端备份、缩略图与数据库持久化
+- qBittorrent、Transmission、Aria2、RSS、索引器、下载目录整理与站点维护
+- 备份、同步、快照、异地副本、恢复演练、监控告警与日常运维
 
-## When to Activate
+不处理与家庭 NAS 无关的企业级 SAN 采购、云厂商专有托管存储架构等请求。
 
-Activate this skill when the user asks to:
+## 默认约定
 
-- Initialize or prepare a new NAS / server
-- Install Docker and Docker Compose
-- Plan storage directory layout
-- Configure server networking and firewall
-- Create service accounts and plan permissions
-- Deploy any self-hosted service with Docker Compose
+- 优先支持 Debian / Ubuntu LTS；其他系统先识别发行版、包管理器、内核、文件系统和 Docker 兼容性。
+- 默认工作根目录为 `/opt/be-nas`，Compose 文件和环境变量按服务模块分目录管理。
+- 默认数据根目录为 `/data`，容器持久化数据、媒体库、下载目录、相册库和备份目录分离。
+- 默认使用 Docker Compose v2、自定义 bridge 网络、显式端口映射、`.env` 管理 PUID/PGID/TZ/路径等变量。
+- 默认不覆盖用户已有配置；需要变更配置文件时先备份为带时间戳的副本。
+- 涉及格式化磁盘、重建阵列、删除数据、修改分区表、清空目录、开放公网访问时，必须先说明风险并要求用户明确确认。
 
-## Work Cycle Rules
+## 工作循环规则
 
-### Execution Principles
-- **Idempotent-first**: All operations must be repeatable without side effects. Prefer check-then-execute patterns.
-- **Least privilege**: Use `sudo` only when necessary; operate with the minimum required permissions.
-- **Check before change**: Verify current state before any mutation to avoid duplicate installs or overwriting existing configs.
-- **Security baseline**: Operations involving network port exposure, key file permissions, or inter-container communication isolation must pass a security review before proceeding.
+### 执行原则
 
-### Phase Progression
-- Execute phases strictly in order. Do not advance until all steps in the current phase pass verification.
-- Every sub-task must produce explicit verification output (exit code, file existence, service status, etc.).
+- **幂等优先**：所有操作应可重复执行而不产生副作用，优先使用检查-执行模式。
+- **最小权限**：仅在必要时使用 `sudo`，操作用最小必要权限。
+- **先检查后执行**：任何变更前先验证当前状态，避免重复安装或覆盖已有配置。
+- **安全基线**：涉及网络端口暴露、密钥文件权限、容器间通信隔离的操作须通过安全检查方可放行。
+- **数据优先**：任何可能影响磁盘、阵列、挂载点、共享目录或数据库的操作，先确认备份和回滚路径。
 
-### Verification Rules
-- Check results immediately after each operation.
-- Service operations: confirm running state via `docker compose ps` or `docker ps`.
-- Compose files: validate syntax with `docker compose config --quiet`.
-- Files/directories: confirm existence via `ls` / `stat` / `test`.
-- Port listening: confirm via `ss -tlnp`.
-- Sensitive files (keys, certs, env files): confirm permissions via `stat -c %a`, must not exceed `600`.
+### 阶段推进
 
-### Error Handling
-- Stop the current phase immediately on single-step failure; output the failure reason and context.
-- When dependencies are missing, fix the dependency first — do not skip.
-- For errors that cannot be auto-resolved, clearly inform the user with manual remediation steps.
-- Mutating operations (config files, compose files) must retain an original backup for fast rollback.
+- 严格按阶段顺序执行，当前阶段全部验证通过后方可进入下一阶段
+- 每个子任务完成后须有明确验证输出（命令返回码、文件存在性、服务状态等）
 
-### State Tracking
-- After each phase completes, record the phase name and completion time in `/opt/nas-stack/.state`.
-- On resume, read the state file to skip completed phases, enabling checkpoint-restart.
+### 验证规则
 
-## Functional Modules
+- 每个操作执行后立即检查结果
+- 服务类操作通过 `docker compose ps` 或 `docker ps` 确认运行态
+- Compose 配置通过 `docker compose config --quiet` 校验语法正确性
+- 文件/目录操作通过 `ls` / `stat` / `test` 确认存在性
+- 端口监听通过 `ss -tlnp`、`lsof -i` 或系统等价命令确认
+- 敏感文件（密钥、证书、环境变量文件）权限通过 `stat -c %a`、`stat -f %Lp` 或系统等价命令确认，确保不超过 600
+- 存储类操作通过 `lsblk`、`blkid`、`df -hT`、`findmnt`、`smartctl`、`zpool status`、`mdadm --detail` 等命令确认
+- 共享类操作通过 `smbclient -L`、`showmount -e`、客户端挂载测试或等价方式确认
 
-### Host Environment Management
+### 错误处理
 
-Prepare the host OS before deploying any containerized services. Execute in order; verify each step before proceeding.
+- 单步失败时立即停止当前阶段，输出失败原因和上下文
+- 环境依赖缺失时优先修复依赖，而非跳过
+- 不可自动修复的错误须明确告知用户并提供手动修复指引
+- 变更类操作（配置文件、compose 文件）须保留原始备份，支持快速回滚
 
-#### 1. OS Base Preparation
-- System update: `apt update && apt upgrade` (Debian/Ubuntu) or `yum update` (CentOS/RHEL)
-- Enable automatic security updates: `unattended-upgrades` (Debian/Ubuntu) or `yum-cron` (CentOS/RHEL)
-- Install base dependencies: `curl`, `wget`, `git`, `htop`, `vim`
-- Set timezone and locale
+### 状态记录
 
-**Verify**: `apt list --upgradable 2>/dev/null | wc -l` or `yum check-update` — confirm no pending updates.
+- 每个阶段完成后在 `/opt/be-nas/.state` 记录阶段名和完成时间
+- 恢复执行时通过读取状态文件跳过已完成阶段，实现断点续传
 
-#### 2. Docker Runtime
-- Install Docker Engine (community edition) per official docs
-- Install Docker Compose v2 plugin
-- Configure Docker daemon (`/etc/docker/daemon.json`):
-  - Log rotation (`max-size: 10m`, `max-file: 3`)
-  - Storage driver (`overlay2` recommended)
-  - Registry mirror (if in mainland China)
-- Security hardening:
-  - Enable user namespace isolation (`userns-remap: default`)
-  - Restrict inter-container communication (`icc: false`)
-  - Limit default capabilities
-- Add management user to `docker` group: `sudo usermod -aG docker $USER`
+## 标准工作流
 
-**Verify**: `docker info` and `docker compose version` produce normal output.
+### 1. 盘点与方案确认
 
-#### 3. Storage Layout
-- Confirm system disk is separate from data disk
-- Create core directory structure:
-  - `/data/docker` — container persistent data
-  - `/data/media` — media library
-  - `/data/backup` — backups
-  - `/opt/nas-stack` — Compose manifests and working directory
-- Optional: plan LVM / RAID / ZFS
+- 识别 CPU、内存、网卡、硬盘数量与型号、SATA/NVMe/USB 连接方式、UPS、机箱散热和噪音约束。
+- 识别操作系统、内核、启动模式、网络接口、IP 获取方式、已有 Docker/Compose 版本和已有服务。
+- 识别磁盘健康：SMART、通电时间、坏道、温度、文件系统、挂载点、阵列状态和剩余容量。
+- 根据用户目标选择方案：轻量文件共享、影音中心、照片中心、下载中心、全家备份、远程访问或混合方案。
+- 对硬件选型给出保守建议：优先考虑盘位、内存容量、网口规格、散热、供电、UPS、ECC/ZFS 需求、功耗和可维护性。
 
-**Verify**: `test -d /data/docker && test -d /opt/nas-stack && echo "OK"`
+### 2. 宿主环境初始化
 
-#### 4. Network Foundation
-- Configure a static IP (DHCP drift will break service reachability)
-- Firewall rules: default-deny inbound, allow only required NAS service ports
-- Create a Docker custom bridge network for inter-service communication
+- 完成系统更新、安全更新、时区、语言环境、基础工具、SSH key 登录、管理用户和 sudo 权限规划。
+- 安装 Docker Engine 与 Docker Compose v2，配置 Docker 开机自启、日志轮转、存储路径和必要的镜像源。
+- 创建 Docker 自定义网络，按服务类型规划内部网络、反向代理网络和仅内部访问网络。
+- 设置防火墙默认拒绝入站，仅放行 SSH、SMB/NFS、Web 管理面板、媒体服务和反向代理所需端口。
+- 配置基础监控：磁盘容量、温度、SMART、内存、CPU、容器状态和关键服务健康检查。
 
-**Verify**: `ip addr show` confirms static IP; `ss -tlnp` confirms no unexpected open ports.
+### 3. 存储池与目录规划
 
-#### 5. Users & Permissions
-- Create a dedicated service account (e.g. `nas-svc`)
-- Plan UID/GID mappings to keep SMB/NFS permissions consistent across services
-- Configure SSH key authentication; disable password login
+- 区分系统盘、应用配置盘、媒体数据盘、下载暂存盘、备份盘和异地同步目标。
+- 根据数据重要性选择单盘、mergerfs、SnapRAID、mdadm RAID、LVM、Btrfs 或 ZFS；说明容量、冗余、扩容、修复复杂度和内存需求。
+- 建立稳定挂载：使用 UUID 或 ZFS dataset，写入 `/etc/fstab` 或对应系统机制，验证重启后挂载正确。
+- 创建核心目录结构：
+  - `/data/docker`：容器持久化数据
+  - `/data/media`：影视、音乐、有声书等媒体库
+  - `/data/photos`：家庭相册与导入目录
+  - `/data/downloads`：下载暂存、完成目录和分类目录
+  - `/data/share`：SMB/NFS 通用共享
+  - `/data/backup`：本机备份和恢复演练数据
+  - `/opt/be-nas`：Compose 声明文件、`.env`、脚本和状态文件
+- 对每个目录设置 owner、group、权限位和 ACL；容器使用统一 PUID/PGID，避免 root 写入业务数据。
 
-**Verify**: `id nas-svc` confirms the user exists; `stat -c %a ~/.ssh/authorized_keys` confirms permissions are `600`.
+### 4. 服务部署与编排
 
-#### 6. Basic Guarantees
-- Enable Docker at boot: `systemctl enable docker`
-- Configure disk space and resource baseline monitoring
-- Reserve periodic snapshot / backup strategy
+- 每个服务模块独立目录，包含 `compose.yaml`、`.env`、`README.md` 或简短运维说明。
+- 优先使用官方镜像或维护活跃的可信镜像，固定主版本或明确升级策略。
+- 所有服务显式声明 volumes、ports、networks、restart policy、healthcheck、日志限制和资源限制。
+- 数据库、缓存、应用配置和媒体数据分卷管理；数据库必须有备份和恢复命令。
+- 需要公网或外网访问时，优先通过 VPN 或反向代理加 TLS；后台管理面板不得无认证暴露到公网。
 
-**Verify**: `systemctl is-enabled docker` returns `enabled`.
+### 5. 验收与交付
 
-## Security Checklist
+- 输出服务访问地址、端口、默认账号处理方式、数据路径、备份路径和常用运维命令。
+- 验证 Docker 服务状态、端口监听、Web UI 可访问性、共享挂载、权限写入、备份任务和恢复样例。
+- 记录后续维护周期：系统更新、镜像更新、SMART 检查、阵列巡检、容量清理、备份恢复演练。
 
-After completing host environment management, confirm each item:
+## 功能模块
 
-- [ ] Firewall default policy is DROP/deny
-- [ ] Only necessary service ports are open
-- [ ] SSH password authentication is disabled
-- [ ] Docker daemon has `userns-remap` enabled
-- [ ] All sensitive file permissions are ≤ 600
-- [ ] Service account has no `sudo` privileges
-- [ ] Docker inter-container communication is restricted (`icc: false`)
+### 宿主环境管理
+
+#### 1. 操作系统基础准备
+
+- 系统更新（`apt update && apt upgrade` / `yum update`）
+- 配置自动安全更新（`unattended-upgrades` / `yum-cron`）
+- 安装基础依赖：`curl`、`wget`、`git`、`htop`、`vim` 等
+- 时区和语言环境设置
+
+#### 2. Docker 运行环境
+
+- 安装 Docker Engine（社区版）
+- 安装 Docker Compose v2
+- 配置 Docker daemon：日志轮转、存储驱动、镜像加速（国内环境）
+- Docker daemon 安全加固：启用用户命名空间隔离、限制容器间通信（`icc: false`）、限制默认 capabilities
+- 将管理用户加入 `docker` 组
+
+#### 3. 存储体系
+
+- 系统盘与数据盘分离
+- 磁盘健康检查、分区、格式化、挂载、容量告警和坏盘替换流程
+- LVM、mdadm RAID、ZFS、Btrfs、mergerfs、SnapRAID 等方案选择与维护
+- 快照、校验、scrub、阵列重建和恢复演练
+
+#### 4. 网络基础
+
+- 固定 IP 配置
+- 防火墙规则（默认拒绝，按需放行 NAS 服务端口）
+- 规划 Docker 自定义 bridge 网络
+- 可选：局域网 DNS、mDNS、反向代理、TLS 证书、VPN 远程访问
+
+#### 5. 用户与权限
+
+- 创建专用服务账户
+- UID/GID 映射规划（保证 SMB/NFS 权限一致）
+- SSH key 认证配置
+- Samba 用户、Linux 用户、容器用户和家庭成员访问权限分层
+- 共享目录 ACL、只读目录、写入目录、访客访问和回收站策略
+
+#### 6. 基础保障
+
+- Docker 开机自启
+- 磁盘空间与资源监控
+- 定期快照 / 备份策略预留
+
+### 文件共享模块
+
+#### SMB
+
+- 部署 Samba 或宿主机原生 SMB 服务，明确共享名、路径、读写权限、回收站、隐藏文件和 macOS 兼容选项。
+- 按家庭成员、设备和服务账户划分访问权限；避免使用全员可写的高权限共享作为默认方案。
+- 验证局域网发现、账号登录、读写权限、中文文件名、大文件传输和回收站行为。
+
+#### NFS
+
+- 面向 Linux 客户端、虚拟化宿主机、媒体播放器或 Kubernetes 节点提供 NFS 共享。
+- 明确导出路径、客户端网段、`sync`/`async`、`root_squash`、只读/读写和防火墙规则。
+- 验证 `showmount -e`、客户端挂载、权限映射、重启后自动挂载和断线恢复。
+
+### 影视库与媒体自动化模块
+
+- 根据用户设备和转码需求选择 Jellyfin、Plex 或 Emby；检查 CPU/GPU 硬件转码支持和驱动映射。
+- 规划媒体目录：电影、剧集、动画、纪录片、音乐、字幕、转码缓存和元数据缓存。
+- 可部署 Radarr、Sonarr、Bazarr、Prowlarr、Overseerr/Jellyseerr、Tdarr 等服务；配置路径映射、分类、命名、硬链接和权限。
+- 下载器与媒体管理服务之间必须使用一致的容器内外路径，避免跨文件系统移动导致硬链接失效。
+- 对媒体库刷新、元数据语言、字幕下载、刮削缓存、转码临时目录和数据库备份给出维护建议。
+
+### 家庭相册模块
+
+- 根据需求选择 Immich 或 PhotoPrism；重点确认移动端自动备份、多人账号、机器学习、缩略图、视频转码和地图功能。
+- 数据库、上传目录、缩略图、模型缓存和配置目录必须持久化，并纳入备份范围。
+- 部署 Immich 时注意应用版本与 Postgres/Redis/机器学习服务兼容性；升级前先备份数据库和上传目录。
+- 验证照片上传、移动端备份、重复文件处理、相册共享、EXIF/时间线、搜索和恢复流程。
+
+### 下载管理与站点维护模块
+
+- 可部署 qBittorrent、Transmission、Aria2、SABnzbd、RSS 工具和索引器管理工具；仅协助合法内容来源和账号安全维护。
+- 规划下载暂存、完成、做种、媒体导入和清理目录，确保权限与媒体自动化服务一致。
+- 配置限速、连接数、磁盘缓存、分类、标签、RSS 规则、完成后脚本和容量告警。
+- 对站点维护只处理 cookie/令牌安全存放、账号隔离、访问频率、RSS/索引器健康检查、过期凭据更新和备份，不协助绕过限制或滥用规则。
+- 对需要隐私保护的下载场景，优先建议合法合规的网络隔离、VPN 容器路由、DNS 防泄漏检查和 kill switch 验证。
+
+### 备份与同步模块
+
+- 按 3-2-1 原则规划：至少 3 份数据、2 种介质、1 份异地或离线副本。
+- 区分必须备份的数据：照片、文档、服务配置、数据库、密钥、Compose 文件；媒体资源按用户成本和容量决定是否备份。
+- 可使用 restic、borg、rsync、rclone、Syncthing、ZFS/Btrfs 快照或云盘同步；明确加密、保留策略和带宽限制。
+- 数据库使用服务推荐的 dump 或备份命令，不直接复制运行中的数据库文件作为唯一备份。
+- 定期执行恢复演练，验证备份可读、密钥可用、权限正确和服务可恢复。
+
+### 监控、安全与运维模块
+
+- 部署或配置容器更新策略、日志轮转、磁盘容量告警、SMART 告警、温度告警、UPS 关机和服务健康检查。
+- 管理面板、下载器、相册和媒体服务必须修改默认密码；敏感环境变量和密钥文件权限不得超过 600。
+- 推荐使用 VPN、Tailscale、WireGuard 或反向代理加 TLS 进行远程访问；公网暴露时必须有认证、强密码、更新策略和访问日志。
+- 镜像升级前先阅读 release notes，备份配置和数据库，优先小版本滚动升级，验证失败可回滚。
+- 提供常用运维命令：查看服务、查看日志、重启服务、更新镜像、备份数据库、恢复配置、检查端口和查看磁盘。
+
+## 输出格式
+
+回答用户时优先给出可执行步骤，并包含：
+- 当前已知环境
+- 风险点和需要用户确认的破坏性操作
+- 命令或配置片段
+- 验证命令与预期结果
+- 回滚或恢复方法
+- 后续维护建议
+
+对于规划类问题，先给出推荐方案，再给出备选方案和取舍；对于故障类问题，先收集最小必要信息，再按影响范围从宿主机、网络、存储、容器、应用配置逐层排查。
