@@ -8,6 +8,8 @@
 - 多块容量不同的磁盘，需要形成统一挂载点。
 - 用户接受无冗余风险，并已有备份或可恢复来源。
 
+如果环境中同时存在可用 SSD 和 HDD，优先将 SSD 留给系统、应用安装位置、数据库和其他高频读写目录；本参考更适合作为 HDD 数据池或其他容量优先场景，而不是应用层默认落盘方案。
+
 不适合：唯一照片库、唯一文档库、业务数据库、没有备份的珍贵数据。此类数据优先考虑 ZFS mirror、mdadm RAID、Btrfs RAID1、SnapRAID + 定期校验，或直接使用独立磁盘加 3-2-1 备份。
 
 ## 操作前检查
@@ -15,7 +17,7 @@
 先按 `references/disk-identification.md` 完成盘点，确认目标磁盘稳定路径。所有示例都使用占位符，实际执行前必须替换为 `/dev/disk/by-id/<disk-id>` 形式。
 
 ```bash
-lsblk -o NAME,PATH,SIZE,TYPE,MODEL,SERIAL,WWN,FSTYPE,LABEL,UUID,MOUNTPOINTS
+lsblk -o NAME,PATH,SIZE,TYPE,ROTA,MODEL,SERIAL,WWN,FSTYPE,LABEL,UUID,MOUNTPOINTS
 findmnt
 sudo pvs
 sudo vgs

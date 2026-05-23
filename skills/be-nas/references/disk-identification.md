@@ -12,17 +12,21 @@
 ## Linux 常用只读盘点命令
 
 ```bash
-lsblk -o NAME,PATH,SIZE,TYPE,TRAN,MODEL,SERIAL,WWN,FSTYPE,FSVER,LABEL,UUID,MOUNTPOINTS
+lsblk -o NAME,PATH,SIZE,TYPE,ROTA,TRAN,MODEL,SERIAL,WWN,FSTYPE,FSVER,LABEL,UUID,MOUNTPOINTS
 blkid
 findmnt
 ls -l /dev/disk/by-id/
 ```
+
+其中 `ROTA=0` 通常表示 SSD 或 NVMe 等非旋转介质，`ROTA=1` 通常表示机械 HDD。USB 硬盘盒、RAID 卡或虚拟化环境可能让该字段不准确，因此仍需结合磁盘型号、SMART 信息和物理盘位一起确认。
 
 SATA/SAS/USB 磁盘可使用：
 
 ```bash
 sudo smartctl -a /dev/disk/by-id/<disk-id>
 ```
+
+如需进一步确认介质类型，可关注 SMART 中的 `Rotation Rate`、`Nominal Media Rotation Rate` 或厂商型号关键字；不要仅凭 `TRAN=SATA` 就把设备判断为 HDD，因为 SATA SSD 也会显示为 `sata`。
 
 NVMe 磁盘可使用：
 
@@ -37,9 +41,11 @@ USB 硬盘盒可能隐藏真实序列号或 WWN。遇到多个同型号同容量
 
 在给用户方案前，先整理为表格：
 
-| 稳定路径                    | 临时设备名 | 容量     | 型号      | 序列号/WWN   | 文件系统   | 挂载点         | 计划用途 |
-| --------------------------- | ---------- | -------- | --------- | ------------ | ---------- | -------------- | -------- |
-| `/dev/disk/by-id/<disk-id>` | `/dev/sdX` | `<size>` | `<model>` | `<redacted>` | `<fstype>` | `<mountpoint>` | `<role>` |
+| 稳定路径                    | 临时设备名 | 容量     | 介质类型  | 型号      | 序列号/WWN   | 文件系统   | 挂载点         | 计划用途 |
+| --------------------------- | ---------- | -------- | --------- | --------- | ------------ | ---------- | -------------- | -------- |
+| `/dev/disk/by-id/<disk-id>` | `/dev/sdX` | `<size>` | `SSD/HDD` | `<model>` | `<redacted>` | `<fstype>` | `<mountpoint>` | `<role>` |
+
+推荐在“计划用途”中直接标注系统盘、应用层 SSD、媒体数据盘、备份盘等角色，避免盘点阶段和部署阶段使用两套不同命名。
 
 ## 破坏性操作前确认语句
 
