@@ -19,8 +19,25 @@ be-nas provides technical information for home NAS deployment, configuration, an
 
 ## Installation
 
+Using the skills CLI:
+
 ```bash
-npx skills add mqhe2007/be-nas
+npx skills add mqhe2007/be-nas --skill be-nas
+```
+
+Using Hermes Agent:
+
+```bash
+hermes skills install mqhe2007/be-nas/skills/be-nas
+```
+
+Repository layout:
+
+```text
+skills/
+	be-nas/
+		SKILL.md
+		references/
 ```
 
 ## Starter Prompt
